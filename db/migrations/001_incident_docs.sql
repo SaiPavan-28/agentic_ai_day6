@@ -3,12 +3,12 @@ CREATE TABLE IF NOT EXISTS incident_docs (
     id SERIAL PRIMARY KEY,
     content TEXT,
     metadata JSONB,
-    embedding VECTOR(768)
+    embedding VECTOR(3072)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS incident_docs_content_hash_idx ON incident_docs (md5(content));
 
 CREATE OR REPLACE FUNCTION match_incident_docs (
-  query_embedding vector(768),
+  query_embedding vector(3072),
   match_count int DEFAULT null,
   filter jsonb DEFAULT '{}'
 ) RETURNS TABLE (

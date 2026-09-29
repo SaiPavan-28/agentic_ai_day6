@@ -19,7 +19,7 @@ def get_hash(content: str) -> str:
 
 def seed():
     embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
+        model="gemini-embedding-001",
         task_type="RETRIEVAL_DOCUMENT",
     )
     

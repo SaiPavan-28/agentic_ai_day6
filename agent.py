@@ -1,4 +1,6 @@
 import os
+from dotenv import load_dotenv
+load_dotenv()
 from typing import Annotated, TypedDict, Literal
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
@@ -26,7 +28,7 @@ def query_service_health(service_name: str) -> str:
 def search_remediation_runbooks(query: str) -> str:
     """Search internal runbooks for remediation steps."""
     embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
+        model="gemini-embedding-001",
         task_type="RETRIEVAL_QUERY",
     )
     db_url = os.environ["DATABASE_URL"]
@@ -40,7 +42,7 @@ def search_remediation_runbooks(query: str) -> str:
         register_vector(conn)
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT content FROM match_incident_docs(%s, 2, '{}')
+                SELECT content FROM match_incident_docs(%s::vector, 2, '{}')
             """, (emb,))
             rows = cur.fetchall()
             if not rows:
@@ -53,7 +55,7 @@ def escalate_ticket(ticket_title: str, severity: str) -> str:
     return f"Ticket created: {ticket_title} (Severity: {severity})"
 
 tools = [query_service_health, search_remediation_runbooks, escalate_ticket]
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro").bind_tools(tools)
+llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite").bind_tools(tools)
 
 def get_agent_app():
     def agent_node(state: AgentState):

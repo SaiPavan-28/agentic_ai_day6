@@ -8,6 +8,11 @@ from agent import get_agent_app
 app = FastAPI()
 agent_app = get_agent_app()
 
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+
 class ChatRequest(BaseModel):
     thread_id: str
     message: str
@@ -31,7 +36,7 @@ def chat_endpoint(req: ChatRequest):
             pending_action={"calls": sensitive_calls}
         )
         
-    return ChatResponse(status="COMPLETED", response=result["messages"][-1].content)
+    return ChatResponse(status="COMPLETED", response=(result["messages"][-1].content[0]["text"] if isinstance(result["messages"][-1].content, list) else result["messages"][-1].content))
 
 class ApproveRequest(BaseModel):
     thread_id: str
@@ -48,7 +53,7 @@ def approve_endpoint(req: ApproveRequest):
         
     if req.approved:
         result = agent_app.invoke(None, config)
-        return {"status": "RESOLVED", "response": result["messages"][-1].content}
+        return {"status": "RESOLVED", "response": (result["messages"][-1].content[0]["text"] if isinstance(result["messages"][-1].content, list) else result["messages"][-1].content)}
     else:
         last_msg = state.values["messages"][-1]
         tool_messages = []
@@ -59,7 +64,7 @@ def approve_endpoint(req: ApproveRequest):
             ))
         agent_app.update_state(config, {"messages": tool_messages}, as_node="sensitive_tools")
         result = agent_app.invoke(None, config)
-        return {"status": "REJECTED_AND_RESUMED", "response": result["messages"][-1].content}
+        return {"status": "REJECTED_AND_RESUMED", "response": (result["messages"][-1].content[0]["text"] if isinstance(result["messages"][-1].content, list) else result["messages"][-1].content)}
 
 def gradio_chat(thread_id, message):
     if not thread_id or not message:
@@ -72,16 +77,16 @@ def gradio_chat(thread_id, message):
     if state.next and "sensitive_tools" in state.next:
         last_msg = state.values["messages"][-1]
         calls = [f"{tc['name']}: {tc['args']}" for tc in last_msg.tool_calls if tc["name"] == "escalate_ticket"]
-        return f"AWAITING_APPROVAL: Pending escalation -> {calls}", result["messages"][-1].content, gr.update(visible=True)
+        return f"AWAITING_APPROVAL: Pending escalation -> {calls}", (result["messages"][-1].content[0]["text"] if isinstance(result["messages"][-1].content, list) else result["messages"][-1].content), gr.update(visible=True)
         
-    return "COMPLETED", result["messages"][-1].content, gr.update(visible=False)
+    return "COMPLETED", (result["messages"][-1].content[0]["text"] if isinstance(result["messages"][-1].content, list) else result["messages"][-1].content), gr.update(visible=False)
 
 def gradio_approve(thread_id):
     if not thread_id:
         return "Thread ID is required.", ""
     config = {"configurable": {"thread_id": thread_id}}
     result = agent_app.invoke(None, config)
-    return "RESOLVED", result["messages"][-1].content
+    return "RESOLVED", (result["messages"][-1].content[0]["text"] if isinstance(result["messages"][-1].content, list) else result["messages"][-1].content)
 
 def gradio_reject(thread_id, reason):
     if not thread_id:
@@ -101,7 +106,7 @@ def gradio_reject(thread_id, reason):
         ))
     agent_app.update_state(config, {"messages": tool_messages}, as_node="sensitive_tools")
     result = agent_app.invoke(None, config)
-    return "REJECTED_AND_RESUMED", result["messages"][-1].content
+    return "REJECTED_AND_RESUMED", (result["messages"][-1].content[0]["text"] if isinstance(result["messages"][-1].content, list) else result["messages"][-1].content)
 
 with gr.Blocks() as ui:
     gr.Markdown("# Autonomous Incident Triage Agent")
