@@ -5,17 +5,17 @@ from seed_rag import seed
 from agent import search_remediation_runbooks
 
 def test_schema_and_embedding_dimension():
-    # Verify migration file schema expectation for 3072 dimensions
+    # Verify migration file schema expectation for 768 dimensions
     sql_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "db", "migrations", "001_incident_docs.sql")
     with open(sql_path, "r") as f:
         sql_content = f.read()
-    assert "VECTOR(3072)" in sql_content or "vector(3072)" in sql_content
+    assert "VECTOR(768)" in sql_content or "vector(768)" in sql_content
     assert "match_incident_docs" in sql_content
 
 @patch("seed_rag.GoogleGenerativeAIEmbeddings")
-def test_seed_idempotent_and_3072_dim(mock_embeddings, mock_postgres):
+def test_seed_idempotent_and_768_dim(mock_embeddings, mock_postgres):
     mock_emb_inst = MagicMock()
-    mock_emb_inst.embed_query.return_value = [0.1] * 3072
+    mock_emb_inst.embed_query.return_value = [0.1] * 768
     mock_embeddings.return_value = mock_emb_inst
     
     mock_conn = mock_postgres["conn"]
@@ -24,10 +24,11 @@ def test_seed_idempotent_and_3072_dim(mock_embeddings, mock_postgres):
     # Run seed
     seed()
     
-    # Verify GoogleGenerativeAIEmbeddings was initialized
+    # Verify GoogleGenerativeAIEmbeddings was initialized with output_dimensionality=768
     mock_embeddings.assert_called_once_with(
         model="models/gemini-embedding-001",
-        task_type="RETRIEVAL_DOCUMENT"
+        task_type="RETRIEVAL_DOCUMENT",
+        output_dimensionality=768
     )
     
     # Verify 3 items inserted
@@ -41,7 +42,7 @@ def test_seed_idempotent_and_3072_dim(mock_embeddings, mock_postgres):
 @patch("agent.GoogleGenerativeAIEmbeddings")
 def test_retrieval_and_metadata_filtering(mock_embeddings, mock_postgres):
     mock_emb_inst = MagicMock()
-    mock_emb_inst.embed_query.return_value = [0.1] * 3072
+    mock_emb_inst.embed_query.return_value = [0.1] * 768
     mock_embeddings.return_value = mock_emb_inst
 
     mock_conn = mock_postgres["conn"]

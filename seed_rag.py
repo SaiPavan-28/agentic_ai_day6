@@ -21,6 +21,7 @@ def seed():
     embeddings = GoogleGenerativeAIEmbeddings(
         model="models/gemini-embedding-001",
         task_type="RETRIEVAL_DOCUMENT",
+        output_dimensionality=768,
     )
     
     db_url = os.environ["DATABASE_URL"]
