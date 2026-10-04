@@ -101,10 +101,11 @@ def test_8_ui_service_layer_integration(mock_agent_service):
         _, mock_llm = mock_agent_service
         mock_llm.invoke.return_value = AIMessage(content="Gradio UI response")
         
-        status, log, _ = gradio_chat("ui-thread-1", "Auth timeout")
+        status, log, group_update = gradio_chat("ui-thread-1", "Auth timeout")
         assert spy_service_chat.called
         assert status == "COMPLETED"
         assert "Gradio UI response" in log
+        assert group_update.get("visible") is False
         
         # Test gradio approval call invokes service_approve
         mock_llm.invoke.return_value = AIMessage(
@@ -116,7 +117,41 @@ def test_8_ui_service_layer_integration(mock_agent_service):
         mock_llm.invoke.side_effect = None
         mock_llm.invoke.return_value = AIMessage(content="Approved via UI")
         
-        status, log = gradio_approve("ui-thread-2")
+        status, log, group_update = gradio_approve("ui-thread-2")
         assert spy_service_approve.called
         assert status == "RESOLVED"
         assert "Approved via UI" in log
+        assert group_update.get("visible") is False
+
+def test_9_gradio_ui_approval_controls_visibility(mock_agent_service):
+    _, mock_llm = mock_agent_service
+    
+    # 1. AWAITING_APPROVAL -> approval_group visible=True
+    mock_llm.invoke.return_value = AIMessage(
+        content="",
+        tool_calls=[{"name": "escalate_ticket", "args": {"ticket_title": "Auth timeout", "severity": "High"}, "id": "tc1"}]
+    )
+    status_text, log_text, group_update = gradio_chat("vis-thread-1", "Auth timeout")
+    assert "AWAITING_APPROVAL" in status_text
+    assert group_update.get("visible") is True
+    
+    # 2. RESOLVED via gradio_approve -> approval_group visible=False
+    mock_llm.invoke.return_value = AIMessage(content="Approved escalation response")
+    status, log, group_update = gradio_approve("vis-thread-1")
+    assert status == "RESOLVED"
+    assert "Approved escalation response" in log
+    assert group_update.get("visible") is False
+
+    # 3. REJECTED_AND_RESUMED via gradio_reject -> approval_group visible=False
+    mock_llm.invoke.return_value = AIMessage(
+        content="",
+        tool_calls=[{"name": "escalate_ticket", "args": {"ticket_title": "DB issue", "severity": "High"}, "id": "tc2"}]
+    )
+    gradio_chat("vis-thread-2", "DB issue")
+    
+    mock_llm.invoke.return_value = AIMessage(content="Rejected response")
+    status, log, group_update = gradio_reject("vis-thread-2", "Not severe")
+    assert status == "REJECTED_AND_RESUMED"
+    assert "Rejected response" in log
+    assert group_update.get("visible") is False
+

@@ -121,21 +121,21 @@ def gradio_chat(thread_id, message):
 
 def gradio_approve(thread_id):
     if not thread_id:
-        return "Thread ID is required.", ""
+        return "Thread ID is required.", "", gr.update(visible=False)
     try:
         res = service_approve(thread_id, approved=True)
-        return res["status"], res["response"]
+        return res["status"], res["response"], gr.update(visible=False)
     except Exception as e:
-        return f"ERROR: {str(e)}", ""
+        return f"ERROR: {str(e)}", "", gr.update(visible=False)
 
 def gradio_reject(thread_id, reason):
     if not thread_id:
-        return "Thread ID is required.", ""
+        return "Thread ID is required.", "", gr.update(visible=False)
     try:
         res = service_approve(thread_id, approved=False, rejection_reason=reason)
-        return res["status"], res["response"]
+        return res["status"], res["response"], gr.update(visible=False)
     except Exception as e:
-        return f"ERROR: {str(e)}", ""
+        return f"ERROR: {str(e)}", "", gr.update(visible=False)
 
 with gr.Blocks() as ui:
     gr.Markdown("# Autonomous Incident Triage Agent")
@@ -154,8 +154,8 @@ with gr.Blocks() as ui:
         reject_btn = gr.Button("Reject Action", variant="stop")
         
     trigger_btn.click(gradio_chat, inputs=[thread_input, msg_input], outputs=[status_label, agent_log, approval_group])
-    approve_btn.click(gradio_approve, inputs=[thread_input], outputs=[status_label, agent_log])
-    reject_btn.click(gradio_reject, inputs=[thread_input, reason_input], outputs=[status_label, agent_log])
+    approve_btn.click(gradio_approve, inputs=[thread_input], outputs=[status_label, agent_log, approval_group])
+    reject_btn.click(gradio_reject, inputs=[thread_input, reason_input], outputs=[status_label, agent_log, approval_group])
 
 app = gr.mount_gradio_app(app, ui, path="/")
 
