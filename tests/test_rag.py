@@ -26,7 +26,7 @@ def test_seed_idempotent_and_768_dim(mock_embeddings, mock_postgres):
     
     # Verify GoogleGenerativeAIEmbeddings was initialized with output_dimensionality=768
     mock_embeddings.assert_called_once_with(
-        model="models/text-embedding-004",
+        model="models/gemini-embedding-001",
         task_type="RETRIEVAL_DOCUMENT",
         output_dimensionality=768
     )

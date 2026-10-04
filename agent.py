@@ -47,7 +47,7 @@ def query_service_health(service_name: str) -> str:
 def search_remediation_runbooks(query: str) -> str:
     """Search internal runbooks for remediation steps."""
     embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/text-embedding-004",
+        model="models/gemini-embedding-001",
         task_type="RETRIEVAL_QUERY",
         output_dimensionality=768,
     )
