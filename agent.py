@@ -49,7 +49,6 @@ def search_remediation_runbooks(query: str) -> str:
     embeddings = GoogleGenerativeAIEmbeddings(
         model="models/gemini-embedding-001",
         task_type="RETRIEVAL_QUERY",
-        output_dimensionality=768,
     )
     db_url = os.environ["DATABASE_URL"]
     
