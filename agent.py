@@ -80,10 +80,10 @@ def get_agent_app(checkpointer=None, custom_llm=None):
             "You are an Autonomous Incident Triage Agent. When an engineer describes an incident, "
             "you MUST first check the health of the affected services using query_service_health. "
             "Then, search runbooks for matching remediation steps using search_remediation_runbooks. "
-            "Reply with what you found and what to do next. "
-            "If the problem needs manual intervention or the service stays degraded, "
-            "you may escalate by opening a ticket and paging the on-call team, but you must never do this by yourself. "
-            "Escalation requires explicit approval."
+            "If the service is degraded or requires manual intervention/escalation, "
+            "you MUST invoke the escalate_ticket tool to propose the escalation. "
+            "Do not ask for approval in text instead of calling escalate_ticket; "
+            "calling the escalate_ticket tool will automatically submit the escalation for human engineer approval before execution."
         )
         response = active_llm.invoke([SystemMessage(content=prompt)] + state["messages"])
         return {"messages": [response]}
