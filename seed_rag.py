@@ -19,8 +19,9 @@ def get_hash(content: str) -> str:
 
 def seed():
     embeddings = GoogleGenerativeAIEmbeddings(
-        model="gemini-embedding-001",
+        model="models/text-embedding-004",
         task_type="RETRIEVAL_DOCUMENT",
+        output_dimensionality=768,
     )
     
     db_url = os.environ["DATABASE_URL"]

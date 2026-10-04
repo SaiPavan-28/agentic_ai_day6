@@ -1,15 +1,34 @@
 import os
+from typing import Annotated, TypedDict, Literal
 from dotenv import load_dotenv
 load_dotenv()
-from typing import Annotated, TypedDict, Literal
-from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
+
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_core.tools import tool
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg_pool import ConnectionPool
+import psycopg
+from pgvector.psycopg import register_vector
 from pydantic import BaseModel
+
+def extract_text(content: str | list | None) -> str:
+    """Normalises string or list-structured model message content to plain text."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict) and "text" in item:
+                parts.append(item["text"])
+        return "".join(parts)
+    return str(content)
 
 class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
@@ -28,13 +47,11 @@ def query_service_health(service_name: str) -> str:
 def search_remediation_runbooks(query: str) -> str:
     """Search internal runbooks for remediation steps."""
     embeddings = GoogleGenerativeAIEmbeddings(
-        model="gemini-embedding-001",
+        model="models/text-embedding-004",
         task_type="RETRIEVAL_QUERY",
+        output_dimensionality=768,
     )
     db_url = os.environ["DATABASE_URL"]
-    
-    import psycopg
-    from pgvector.psycopg import register_vector
     
     emb = embeddings.embed_query(query)
     
@@ -55,9 +72,10 @@ def escalate_ticket(ticket_title: str, severity: str) -> str:
     return f"Ticket created: {ticket_title} (Severity: {severity})"
 
 tools = [query_service_health, search_remediation_runbooks, escalate_ticket]
-llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite").bind_tools(tools)
 
-def get_agent_app():
+def get_agent_app(checkpointer=None, custom_llm=None):
+    active_llm = custom_llm if custom_llm is not None else ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite").bind_tools(tools)
+
     def agent_node(state: AgentState):
         prompt = (
             "You are an Autonomous Incident Triage Agent. When an engineer describes an incident, "
@@ -68,7 +86,7 @@ def get_agent_app():
             "you may escalate by opening a ticket and paging the on-call team, but you must never do this by yourself. "
             "Escalation requires explicit approval."
         )
-        response = llm.invoke([SystemMessage(content=prompt)] + state["messages"])
+        response = active_llm.invoke([SystemMessage(content=prompt)] + state["messages"])
         return {"messages": [response]}
 
     def route_tools(state: AgentState) -> Literal["safe_tools", "sensitive_tools", "__end__"]:
@@ -111,12 +129,19 @@ def get_agent_app():
     workflow.add_edge("safe_tools", "agent")
     workflow.add_edge("sensitive_tools", "agent")
     
-    # We create the checkpointer outside
-    pool = ConnectionPool(os.environ["DATABASE_URL"], max_size=10, kwargs={"autocommit": True, "prepare_threshold": None})
-    checkpointer = PostgresSaver(pool)
-    checkpointer.setup()
-    
+    if checkpointer is None:
+        db_url = os.getenv("DATABASE_URL")
+        if db_url:
+            pool = ConnectionPool(db_url, max_size=10, kwargs={"autocommit": True, "prepare_threshold": None})
+            checkpointer = PostgresSaver(pool)
+            try:
+                checkpointer.setup()
+            except Exception:
+                pass
+        else:
+            from langgraph.checkpoint.memory import MemorySaver
+            checkpointer = MemorySaver()
+
     app = workflow.compile(checkpointer=checkpointer, interrupt_before=["sensitive_tools"])
     return app
 
-from langchain_core.messages import SystemMessage
